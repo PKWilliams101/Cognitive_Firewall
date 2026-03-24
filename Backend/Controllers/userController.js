@@ -1,85 +1,70 @@
-const User = require("../Models/User");
+const User = require('../Models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-// 1. REGISTER (Create User)
-exports.createUser = async (req, res) => {
-  try {
-    const { username, email, password, experienceLevel, plannedDailyLimit } = req.body;
-    
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: "User already exists" });
+// A secret key for signing tokens (In production, this goes in a .env file!)
+const JWT_SECRET = "cognitive_firewall_super_secret_key_2026";
 
-    const newUser = new User({
-      username,
-      email,
-      password,
-      experienceLevel: experienceLevel || "BEGINNER",
-      plannedDailyLimit: plannedDailyLimit || 3
-    });
-
-    const savedUser = await newUser.save();
-    res.status(201).json(savedUser);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+// Helper function to generate the token
+const generateToken = (id) => {
+    return jwt.sign({ id }, JWT_SECRET, { expiresIn: '30d' });
 };
 
-// 2. LOGIN (Authenticate User)
-exports.loginUser = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    // Simple password check (Add bcrypt in future if needed)
-    const user = await User.findOne({ email });
-    if (!user || user.password !== password) {
-      return res.status(401).json({ message: "Invalid email or password" });
+// 1. SECURE REGISTRATION
+exports.registerUser = async (req, res) => {
+    try {
+        const { username, email, password } = req.body;
+
+        // Check if user already exists
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            return res.status(400).json({ message: "User already exists" });
+        }
+
+        // 🔥 THE UPGRADE: Hash the password before saving!
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Create the user with the hashed password
+        const user = await User.create({
+            username,
+            email,
+            password: hashedPassword
+        });
+
+        if (user) {
+            res.status(201).json({
+                _id: user.id,
+                username: user.username,
+                email: user.email,
+                token: generateToken(user._id) // Hand them their secure entry key
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
-
-    res.json(user); // Send back the user profile
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
 };
 
-// 3. GET USER (Fetch Profile)
-exports.getUserById = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
+// 2. SECURE LOGIN
+exports.loginUser = async (req, res) => {
+    try {
+        const { email, password } = req.body;
 
-// 4. UPDATE STRATEGY (Settings Page)
-exports.updateUserStrategy = async (req, res) => {
-  try {
-    const { plannedDailyLimit, tradingPlanRules } = req.body;
-    
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
-      { 
-        $set: { 
-          plannedDailyLimit: plannedDailyLimit,
-          tradingPlanRules: tradingPlanRules 
-        } 
-      },
-      { new: true } // Return the fresh data
-    );
-    
-    res.json(updatedUser);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
+        // Find the user by email
+        const user = await User.findOne({ email });
 
-// Keep your GetAllUsers if you need it for debugging
-exports.getAllUsers = async (req, res) => {
-  try {
-    const users = await User.find();
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+        // 🔥 THE UPGRADE: Compare the typed password with the hashed database password
+        if (user && (await bcrypt.compare(password, user.password))) {
+            res.json({
+                _id: user.id,
+                username: user.username,
+                email: user.email,
+                token: generateToken(user._id) // Hand them their secure entry key
+            });
+        } else {
+            res.status(401).json({ message: "Invalid email or password" });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };

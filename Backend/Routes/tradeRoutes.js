@@ -2,9 +2,10 @@ const User = require("../Models/User");
 const express = require("express");
 const router = express.Router();
 const Trade = require("../Models/Trade"); 
-
+const metricsService = require("../Services/metricsService");
+const { protect } = require('../Middleware/authMiddleware');
 // 1. CREATE TRADE
-router.post("/", async (req, res) => {
+router.post("/", protect, async (req, res) => {
     try {
         const newTrade = new Trade(req.body);
         const savedTrade = await newTrade.save();
@@ -15,7 +16,7 @@ router.post("/", async (req, res) => {
 });
 
 // 2. GET TRADES
-router.get("/user/:userId", async (req, res) => {
+router.get("/user/:userId", protect, async (req, res) => {
     try {
         console.log("Fetching trades for user:", req.params.userId);
         const trades = await Trade.find({ userId: req.params.userId }).sort({ entryTime: -1 });
@@ -26,64 +27,23 @@ router.get("/user/:userId", async (req, res) => {
     }
 });
 
-// 3. GET METRICS (Calculates Revenge Risk, Discipline, etc.)
-router.get("/metrics/:userId", async (req, res) => {
-    try {
-        const trades = await Trade.find({ userId: req.params.userId }).sort({ entryTime: 1 }); 
-        const user = await User.findById(req.params.userId);
 
-        if (!trades || !user) {
-            return res.json({ disciplineScore: 100, overtradingIndex: "0.00", dispositionRatio: "0.00", revengeRisk: 0 });
+// 3. GET METRICS (Calculates Revenge Risk, Discipline, etc.)
+router.get("/metrics/:userId", protect, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const trades = await Trade.find({ userId: userId }).sort({ entryTime: 1 }); 
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
         }
 
-        // --- Discipline Score ---
-        const disciplinedCount = trades.filter(t => t.followedPlan === true).length;
-        const disciplineScore = trades.length > 0 
-            ? Math.round((disciplinedCount / trades.length) * 100) 
-            : 100;
+        // Run our new Centralised Calculation Engine!
+        const metrics = metricsService.generateUserMetrics(user, trades);
 
-        // --- Impulsivity (Overtrading) Index ---
-        const today = new Date().setHours(0, 0, 0, 0);
-        const tradesToday = trades.filter(t => new Date(t.entryTime).setHours(0, 0, 0, 0) === today).length;
-        const limit = user.plannedDailyLimit || 3;
-        const overtradingIndex = (tradesToday / limit).toFixed(2);
-
-        // --- REVENGE RISK LOGIC ---
-        let revengeRisk = 0;
-        const recentTrades = [...trades].slice(-5); 
-
-        recentTrades.forEach((trade, index) => {
-            if (trade.pnl < 0) {
-                let heat = 20; 
-                const previousTrade = recentTrades[index - 1];
-                if (previousTrade) {
-                    const timeDiff = (new Date(trade.entryTime) - new Date(previousTrade.entryTime)) / 60000;
-                    if (timeDiff < 15) { 
-                        heat *= 2; // Rapid fire penalty
-                    }
-                }
-                revengeRisk += heat;
-            } else if (trade.pnl > 0) {
-                revengeRisk -= 10; // Success cools the tilt
-            }
-        });
-
-        revengeRisk = Math.max(0, Math.min(100, revengeRisk));
-
-        // --- Disposition Ratio ---
-        const wins = trades.filter(t => t.pnl > 0);
-        const losses = trades.filter(t => t.pnl < 0);
-        const avgWin = wins.length > 0 ? (wins.reduce((sum, t) => sum + t.pnl, 0) / wins.length) : 0;
-        const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((sum, t) => sum + t.pnl, 0) / losses.length) : 1;
-        const dispositionRatio = (avgWin / avgLoss).toFixed(2);
-
-        res.json({ 
-            disciplineScore, 
-            overtradingIndex, 
-            dispositionRatio,
-            revengeRisk, 
-            houseMoneyFactor: "1.00"
-        });
+        // Send the complete package to React (including chartData and hasTrades)
+        res.json(metrics);
 
     } catch (err) {
         console.error("Metrics Error:", err);

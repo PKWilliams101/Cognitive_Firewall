@@ -1,8 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../Models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-// 1. REGISTER ROUTE (Fixes the 404 on Register)
+// A secret key for signing tokens (In a real app, this goes in a .env file)
+const JWT_SECRET = "cognitive_firewall_super_secret_key_2026";
+
+// Helper function to generate the secure digital passport
+const generateToken = (id) => {
+    return jwt.sign({ id }, JWT_SECRET, { expiresIn: '30d' });
+};
+
+// 1. SECURE REGISTER ROUTE
 // Endpoint: POST http://localhost:5000/api/users/register
 router.post('/register', async (req, res) => {
   try {
@@ -14,20 +24,24 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Create user (Plain text password for now to avoid bcrypt complexity errors)
+    //Hash the password cryptographically
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create user with the HASHED password
     const user = await User.create({
       username,
       email,
-      password,
-      tradingPlanRules: [], // Default empty plan
-      plannedDailyLimit: 3  // Default limit
+      password: hashedPassword, // No more plain text!
+      tradingPlanRules: [], 
+      plannedDailyLimit: 3  
     });
 
     res.status(201).json({
       _id: user._id,
       username: user.username,
       email: user.email,
-      token: "dummy_token_for_now" 
+      token: generateToken(user._id) // Hand them their real JWT
     });
   } catch (error) {
     console.error(error);
@@ -35,7 +49,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 2. LOGIN ROUTE (Fixes the 404 on Login)
+// 2. SECURE LOGIN ROUTE
 // Endpoint: POST http://localhost:5000/api/users/login
 router.post('/login', async (req, res) => {
   try {
@@ -44,14 +58,15 @@ router.post('/login', async (req, res) => {
     // Find user
     const user = await User.findOne({ email });
     
-    // Simple password check (Replace with bcrypt.compare later for security)
-    if (user && (user.password === password)) {
+    // 🔥 THE UPGRADE: Compare typed password against the database hash
+    if (user && (await bcrypt.compare(password, user.password))) {
       res.json({
         _id: user._id,
         username: user.username,
         email: user.email,
         tradingPlanRules: user.tradingPlanRules,
-        plannedDailyLimit: user.plannedDailyLimit
+        plannedDailyLimit: user.plannedDailyLimit,
+        token: generateToken(user._id) // Hand them their real JWT
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
@@ -63,6 +78,7 @@ router.post('/login', async (req, res) => {
 });
 
 
+// 3. UPDATE USER SETTINGS ROUTE
 // Endpoint: PUT http://localhost:5000/api/users/:id
 router.put('/:id', async (req, res) => {
   try {

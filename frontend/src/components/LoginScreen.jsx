@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Brain, ArrowRight, Lock, Mail, AlertCircle } from 'lucide-react';
+import './LoginScreen.css';
 
 export default function LoginScreen({ onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,15 +14,15 @@ export default function LoginScreen({ onLoginSuccess }) {
     setError('');
     setLoading(true);
 
-    const endpoint = isLogin 
-      ? 'http://localhost:5000/api/users/login' 
+    const endpoint = isLogin
+      ? 'http://localhost:5000/api/users/login'
       : 'http://localhost:5000/api/users/register';
 
     try {
       const res = await axios.post(endpoint, formData);
       onLoginSuccess(res.data);
     } catch (err) {
-      console.error("Connection Error:", err);
+      console.error('Connection Error:', err);
       setError(err.response?.data?.message || 'Connection failed. Check your internet.');
     } finally {
       setLoading(false);
@@ -29,50 +30,91 @@ export default function LoginScreen({ onLoginSuccess }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}>
-      <div style={{ background: '#FFF', padding: '40px', borderRadius: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-          <Brain color="#3B82F6" size={32} />
-          <h1 style={{ fontSize: '20px', fontWeight: '900' }}>COGNITIVE FIREWALL</h1>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="auth-pill">
+          <Brain size={16} /> Cognitive Firewall
         </div>
 
-        <h2 style={{ fontSize: '22px', marginBottom: '20px' }}>{isLogin ? 'Sign In' : 'Register'}</h2>
-        
-        {error && <div style={{ color: '#B91C1C', background: '#FEF2F2', padding: '10px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>{error}</div>}
+        <h1>{isLogin ? 'Sign in to your Terminal' : 'Create your Discipline Profile'}</h1>
+        <p className="auth-lead">
+          {isLogin
+            ? 'Authenticate to access your behavioral dashboard and execution telemetry.'
+            : 'Register to start tracking discipline, revenge risk, and trading behavior.'}
+        </p>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        {error && (
+          <div className="auth-error">
+            <AlertCircle size={14} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form className="auth-form" onSubmit={handleSubmit}>
           {!isLogin && (
-            <input 
-              type="text" placeholder="Username" required 
-              value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} 
-              style={inputStyle} 
-            />
+            <label className="auth-field">
+              <span className="auth-label">Username</span>
+              <div className="auth-input-wrap">
+                <input
+                  type="text"
+                  placeholder="Choose a username"
+                  required
+                  value={formData.username}
+                  onChange={e => setFormData({ ...formData, username: e.target.value })}
+                />
+              </div>
+            </label>
           )}
-          <input 
-            type="email" placeholder="Email" required 
-            value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} 
-            style={inputStyle} 
-          />
-          <input 
-            type="password" placeholder="Password" required 
-            value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} 
-            style={inputStyle} 
-          />
-          <button type="submit" disabled={loading} style={btnStyle}>
-            {loading ? 'Processing...' : (isLogin ? 'Login' : 'Create Account')} <ArrowRight size={18} />
+
+          <label className="auth-field">
+            <span className="auth-label">Email</span>
+            <div className="auth-input-wrap">
+              <Mail size={16} className="auth-input-icon" />
+              <input
+                type="email"
+                placeholder="you@example.com"
+                required
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+          </label>
+
+          <label className="auth-field">
+            <span className="auth-label">Password</span>
+            <div className="auth-input-wrap">
+              <Lock size={16} className="auth-input-icon" />
+              <input
+                type="password"
+                placeholder="••••••••"
+                required
+                value={formData.password}
+                onChange={e => setFormData({ ...formData, password: e.target.value })}
+              />
+            </div>
+          </label>
+
+          <button type="submit" disabled={loading} className="auth-btn primary">
+            {loading ? 'Processing…' : isLogin ? 'Login' : 'Create Account'}
+            {!loading && <ArrowRight size={18} />}
           </button>
         </form>
 
-        <button 
-          onClick={() => { setIsLogin(!isLogin); setError(''); }} 
-          style={{ background: 'none', border: 'none', color: '#10B981', marginTop: '20px', cursor: 'pointer', fontWeight: '600' }}
+        <button
+          type="button"
+          className="auth-toggle"
+          onClick={() => {
+            setIsLogin(!isLogin);
+            setError('');
+          }}
         >
-          {isLogin ? "Need an account? Register" : "Have an account? Login"}
+          {isLogin ? 'Need an account? Register' : 'Have an account? Login'}
         </button>
+
+        <p className="auth-footnote">
+          This interface analyzes your executions and behavior. It does not place live trades or connect to broker accounts.
+        </p>
       </div>
     </div>
   );
 }
-
-const inputStyle = { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0', outline: 'none', boxSizing: 'border-box' };
-const btnStyle = { background: '#10B981', color: '#FFF', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' };

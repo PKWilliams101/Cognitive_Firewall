@@ -1,0 +1,21 @@
+config:
+  target: "http://localhost:5000" 
+  phases:
+    - duration: 10
+      arrivalRate: 10
+      name: "Phase 1: 10 req/sec"
+    - duration: 10
+      arrivalRate: 50
+      name: "Phase 2: 50 req/sec"
+    - duration: 10
+      arrivalRate: 100
+      name: "Phase 3: 100 req/sec"
+    - duration: 10
+      arrivalRate: 200
+      name: "Phase 4: 200 req/sec"
+
+scenarios:
+  - name: "Spam Root API"
+    flow:
+      - get:
+          url: "/"

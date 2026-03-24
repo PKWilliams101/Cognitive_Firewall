@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { AlertTriangle, ShieldCheck, Activity } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, Activity, Lock } from 'lucide-react';
 
-const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose }) => {
+// Added revengeRisk to the props
+const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose, revengeRisk = 0 }) => {
     const [phase, setPhase] = useState('PRE_FLIGHT');
     const [instrument, setInstrument] = useState('');
     const [direction, setDirection] = useState('buy');
-    const [risk, setRisk] = useState('1.0'); // NEW: Risk State
+    const [risk, setRisk] = useState('1.0'); 
     const [checkedRules, setCheckedRules] = useState({});
     
     const [entryTime, setEntryTime] = useState(null);
@@ -16,9 +17,9 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose }) => {
     const [notes, setNotes] = useState('');
     
     const [loading, setLoading] = useState(false);
-    const [tradesToday, setTradesToday] = useState(0); // FIX: Local state for accurate count
+    const [tradesToday, setTradesToday] = useState(0); 
 
-    // --- FIX: FETCH EXACT TRADES TODAY ON LOAD ---
+    // --- FETCH EXACT TRADES TODAY ON LOAD ---
     useEffect(() => {
         if (!user) return;
         const fetchTodayTrades = async () => {
@@ -36,63 +37,84 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose }) => {
 
     if (!user) return null;
 
-    // --- LIMIT CALCULATIONS ---
+    // --- LIMIT & LOCK CALCULATIONS ---
     const MAX_TRADES = Number(user.plannedDailyLimit || 3);
     const rulesList = user.tradingPlanRules || [];
     const tradesRemaining = Math.max(0, MAX_TRADES - tradesToday);
+    
     const isOverLimit = tradesRemaining <= 0;
+    const isTilted = revengeRisk >= 80; // Triggers if Revenge Risk is 80% or higher
+    
+    // The system locks if THEY OVERTRADE -OR- THEY ARE TILTED
+    const isHardLocked = isOverLimit || isTilted;
 
     // --- HANDLERS ---
     const handleStartTrade = () => {
-        if (!instrument) return alert("Please enter an asset ticker.");
-        if (!risk || Number(risk) <= 0) return alert("Please enter a valid risk percentage.");
+        // Failsafe: Secondary backend-style check
+        if (isHardLocked) return;
+
+        if (!instrument) return alert("Please select an asset from the dropdown.");
+        
+        const numericRisk = Number(risk);
+        if (!risk || numericRisk <= 0) return alert("Please enter a valid risk percentage.");
+
+        // ITERATION 2 FIX: Hard cap on maximum allowable risk per trade
+        if (numericRisk > 5.0) {
+            return alert("🛑 FIREWALL BLOCK: Risk exceeds maximum allowable threshold (5.0%). Execution halted to protect account equity.");
+        }
 
         const ticks = Object.values(checkedRules).filter(val => val === true).length;
         if (rulesList.length > 0 && ticks < rulesList.length) {
             const confirmRules = window.confirm(`⚠️ CONFLUENCE WARNING: You only checked ${ticks}/${rulesList.length} rules.\n\nTrading without full confluence reduces your edge. Force trade anyway?`);
             if (!confirmRules) return;
-        }
-
-        if (isOverLimit) {
-            const confirmOvertrade = window.confirm(`🛑 OVERTRADE WARNING: You have used all ${MAX_TRADES} daily trades.\n\nThis will severely spike your Impulsivity Index and Revenge Risk. Are you sure you want to proceed?`);
-            if (!confirmOvertrade) return;
-        }
+           }
 
         setEntryTime(new Date());
         setPhase('LIVE');
     };
 
     const handleCloseTrade = async () => {
-        if (!pnl) return alert("Please enter the final PnL");
-        
-        setLoading(true);
-        const numPnL = Number(pnl);
-        
-        const tradeData = {
-            userId: user._id,
-            instrument: instrument.toUpperCase(),
-            direction,
-            entryTime,
-            exitTime: new Date(),
-            pnl: numPnL,
-            result: numPnL > 0 ? 'win' : numPnL < 0 ? 'loss' : 'breakeven',
-            followedPlan,
-            mood,
-            notes,
-            riskPercentage: Number(risk) // NEW: Pushes risk to backend
-        };
-
-        try {
-            await axios.post('http://localhost:5000/api/trades', tradeData);
-            if (onTradeSuccess) onTradeSuccess(); 
-            if (onClose) onClose();              
-        } catch (err) {
-            console.error("Save Error:", err);
-            alert("Save failed. Please check your database connection.");
-        } finally {
-            setLoading(false);
-        }
+    if (!pnl) return alert("Please enter the final PnL");
+    
+    setLoading(true);
+    const numPnL = Number(pnl);
+    
+    const tradeData = {
+        userId: user._id,
+        instrument: instrument,
+        direction,
+        entryTime,
+        exitTime: new Date(),
+        pnl: numPnL,
+        result: numPnL > 0 ? 'win' : numPnL < 0 ? 'loss' : 'breakeven',
+        followedPlan,
+        mood,
+        notes,
+        riskPercentage: Number(risk) 
     };
+
+    // 1. Grab the VIP Badge from Local Storage
+    const storedUser = JSON.parse(localStorage.getItem('user'));
+    const token = storedUser?.token;
+
+    // 2. Create the Authorization Header
+    const config = {
+        headers: { Authorization: `Bearer ${token}` }
+    };
+
+    try {
+        
+        await axios.post('http://localhost:5000/api/trades', tradeData, config);
+        
+        if (onTradeSuccess) onTradeSuccess(); 
+        if (onClose) onClose();              
+    } catch (err) {
+        console.error("Save Error:", err);
+        alert("Save failed. Please check your database connection.");
+    } finally {
+        setLoading(false);
+    }
+};
 
     // --- DYNAMIC STYLES ---
     const styles = {
@@ -104,6 +126,7 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose }) => {
         input: { width: '100%', backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', outline: 'none', marginBottom: '20px', boxSizing: 'border-box' },
         btnPrimary: { backgroundColor: 'var(--primary)', color: 'white', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: '800', cursor: 'pointer', width: '100%', letterSpacing: '1px' },
         btnDanger: { backgroundColor: 'var(--danger)', color: 'white', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: '800', cursor: 'pointer', width: '100%', letterSpacing: '1px' },
+        btnLocked: { backgroundColor: 'var(--background)', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '14px', borderRadius: '8px', fontWeight: '800', cursor: 'not-allowed', width: '100%', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' },
         checkItem: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--background)', marginBottom: '8px', cursor: 'pointer' }
     };
 
@@ -116,7 +139,6 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose }) => {
                     <>
                         <div style={styles.header}><ShieldCheck size={24} color="var(--primary)" /> Pre-Flight Protocol</div>
                         
-                        {/* Status Banner */}
                         <div style={{ backgroundColor: isOverLimit ? 'rgba(255, 86, 48, 0.1)' : 'var(--background)', border: `1px solid ${isOverLimit ? 'var(--danger)' : 'var(--border)'}`, borderRadius: '12px', padding: '16px', display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
                             <div>
                                 <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', letterSpacing: '1px' }}>DAILY LIMIT</div>
@@ -128,11 +150,30 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose }) => {
                             </div>
                         </div>
 
-                        {/* Top Row Inputs */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '12px' }}>
                             <div>
                                 <label style={styles.label}>Asset</label>
-                                <input style={styles.input} placeholder="BTC/USD" value={instrument} onChange={e => setInstrument(e.target.value)} />
+                                <select style={styles.input} value={instrument} onChange={e => setInstrument(e.target.value)}>
+                                    <option value="" disabled>Select...</option>
+                                    <optgroup label="Forex">
+                                        <option value="EUR/USD">EUR/USD</option>
+                                        <option value="GBP/USD">GBP/USD</option>
+                                        <option value="USD/JPY">USD/JPY</option>
+                                        <option value="GBP/JPY">GBP/JPY</option>
+                                    </optgroup>
+                                    <optgroup label="Metals">
+                                        <option value="XAU/USD">XAU/USD (Gold)</option>
+                                        <option value="XAG/USD">XAG/USD (Silver)</option>
+                                    </optgroup>
+                                    <optgroup label="Indices">
+                                        <option value="US30">US30 (Dow Jones)</option>
+                                        <option value="NAS100">NAS100 (Nasdaq)</option>
+                                    </optgroup>
+                                    <optgroup label="Crypto">
+                                        <option value="BTC/USD">BTC/USD (Bitcoin)</option>
+                                        <option value="ETH/USD">ETH/USD (Ethereum)</option>
+                                    </optgroup>
+                                </select>
                             </div>
                             <div>
                                 <label style={styles.label}>Side</label>
@@ -147,7 +188,6 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose }) => {
                             </div>
                         </div>
 
-                        {/* Rules Checklist */}
                         <label style={styles.label}>Verify Confluences</label>
                         <div style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '24px' }}>
                             {rulesList.length === 0 ? (
@@ -162,7 +202,15 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose }) => {
                             )}
                         </div>
 
-                        <button style={styles.btnPrimary} onClick={handleStartTrade}>INITIALIZE EXECUTION</button>
+                        {/* ITERATION 2 FIX: The Comprehensive Hard Lock Protocol */}
+                        {isHardLocked ? (
+                            <button style={styles.btnLocked} disabled={true}>
+                                <Lock size={18} /> 
+                                {isOverLimit ? "SYSTEM LOCKED: DAILY LIMIT REACHED" : "SYSTEM LOCKED: CRITICAL REVENGE RISK"}
+                            </button>
+                        ) : (
+                            <button style={styles.btnPrimary} onClick={handleStartTrade}>INITIALIZE EXECUTION</button>
+                        )}
                     </>
                 )}
 

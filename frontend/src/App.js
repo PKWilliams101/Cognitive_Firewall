@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css'; 
 import { Brain, LayoutDashboard, BookOpen, Settings, LogOut, Zap, HelpCircle } from 'lucide-react';
-
+import Welcome from './pages/Welcome';
 import LoginScreen from './components/LoginScreen';
 import BehaviouralFeedbackPanel from './components/BehaviouralFeedbackPanel';
 import TradeExecutionWizard from './components/TradeExecutionWizard';
@@ -17,6 +17,7 @@ function App() {
   const [showGuide, setShowGuide] = useState(false);
   const [tradeHistory, setTradeHistory] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [authStage, setAuthStage] = useState('welcome'); // 'welcome' | 'login'
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -29,10 +30,22 @@ function App() {
 
   const fetchTradeHistory = async (userId) => {
     if (!userId) return;
+
+    // 1. Grab the VIP Badge (JWT) from local storage
+    const storedUser = JSON.parse(localStorage.getItem('user'));
+    const token = storedUser?.token;
+    console.log("👮‍♂️ BOUNCER CHECK - Token is:", token);
+    // 2. Create the Authorization Header
+    const config = {
+      headers: { Authorization: `Bearer ${token}` }
+    };
+
+    if (!userId) return;
     try {
       const [tradesRes, metricsRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/trades/user/${userId}`),
-        axios.get(`http://localhost:5000/api/trades/metrics/${userId}`)
+        // ADD `, config` to the end of both of these lines!
+        axios.get(`http://localhost:5000/api/trades/user/${userId}`, config),
+        axios.get(`http://localhost:5000/api/trades/metrics/${userId}`, config)
       ]);
       setTradeHistory(tradesRes.data || []); 
       setMetrics(metricsRes.data || {});
@@ -53,14 +66,20 @@ function App() {
     localStorage.removeItem('user');
     setTradeHistory([]);
     setMetrics(null);
+    setAuthStage('welcome');
   };
 
-  if (!user) return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  // --- AUTH FLOW: Welcome -> Login ---
+  if (!user) {
+    if (authStage === 'welcome') {
+      return <Welcome onContinue={() => setAuthStage('login')} />;
+    }
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <div className="app-container">
-      
-      {/* HEADER (Now using pure App.css classes) */}
+      {/* HEADER */}
       <header className="app-header">
         <div className="logo-section">
           <div className="logo-icon">
@@ -103,7 +122,7 @@ function App() {
       </div>
 
       <main className="app-content">
-        {view === 'dashboard' && <BehaviouralFeedbackPanel user={user} data={metrics} trades={tradeHistory} />}
+        {view === 'dashboard' && <BehaviouralFeedbackPanel user={user} metrics={metrics} trades={tradeHistory} />}
         {view === 'strategy' && <StrategySettings user={user} onUpdate={setUser} />}
         {view === 'journal' && <ReflectiveJournal trades={tradeHistory} userId={user._id} onTradeLogged={() => fetchTradeHistory(user._id)} />}
       </main>
@@ -111,7 +130,12 @@ function App() {
       {/* MODALS */}
       {showWizard && (
         <div className="wizard-overlay">
-          <TradeExecutionWizard userId={user._id} user={user} onClose={() => setShowWizard(false)} onTradeSuccess={() => fetchTradeHistory(user._id)} />
+          <TradeExecutionWizard
+            userId={user._id}
+            user={user}
+            onClose={() => setShowWizard(false)}
+            onTradeSuccess={() => fetchTradeHistory(user._id)}
+          />
         </div>
       )}
 

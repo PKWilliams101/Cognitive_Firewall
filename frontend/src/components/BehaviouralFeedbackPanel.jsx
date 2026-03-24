@@ -3,57 +3,60 @@ import { Target, Activity, Brain, TrendingUp, ShieldCheck, AlertTriangle, Dollar
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import PageWrapper from './PageWrapper';
 
-export default function BehaviouralFeedbackPanel({ user, trades = [] }) {
-  
-  // --- 1. CLEAN SLATE PROTOCOL ---
-  const hasTrades = trades && trades.length > 0;
+// Helper for the insight text
+const toNumber = v => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
-  // --- 2. CALCULATE METRICS ---
-  let disciplineScore = 100, revengeRisk = 0, impulsivityIndex = 0, dispositionRatio = "0.00", systemIntegrity = 100;
-  let netPnl = 0, winRate = 0;
+// We now pass in the 'metrics' object that we fetched from the backend API!
+export default function BehaviouralFeedbackPanel({ user, trades = [], metrics = {} }) {
+  console.log("X-RAY TRADES:", trades);
+  console.log("X-RAY METRICS:", metrics);
+  // 1. Extract the pre-calculated math from the secure backend payload
+  const {
+    hasTrades = false,
+    disciplineScore = 100,
+    revengeRisk = 0,
+    impulsivityIndex = 0,
+    dispositionRatio = '0.00',
+    systemIntegrity = 100,
+    netPnl = 0,
+    winRate = 0,
+    chartData = []
+  } = metrics || {};
 
-  if (hasTrades) {
-    // A. Discipline (Followed Plan %)
-    const adherentTrades = trades.filter(t => t.followedPlan).length;
-    disciplineScore = Math.round((adherentTrades / trades.length) * 100);
-
-    // B. Revenge Risk (Spikes on recent loss)
-    const sortedTrades = [...trades].sort((a, b) => new Date(b.entryTime) - new Date(a.entryTime));
-    const lastTrade = sortedTrades[0];
-    const isRecentLoss = lastTrade && lastTrade.pnl < 0;
-    revengeRisk = isRecentLoss ? 45 : 0; 
-
-    // C. Impulsivity (Trades vs Limit)
-    const dailyLimit = user?.plannedDailyLimit || 3;
-    const todayStr = new Date().toDateString();
-    const tradesToday = trades.filter(t => new Date(t.entryTime).toDateString() === todayStr).length;
-    impulsivityIndex = (tradesToday / dailyLimit).toFixed(2);
-
-    // D. Disposition (Avg Win / Avg Loss)
-    const wins = trades.filter(t => t.pnl > 0);
-    const losses = trades.filter(t => t.pnl < 0);
-    const avgWin = wins.length ? wins.reduce((acc, t) => acc + t.pnl, 0) / wins.length : 0;
-    const avgLoss = losses.length ? Math.abs(losses.reduce((acc, t) => acc + t.pnl, 0) / losses.length) : 1; 
-    dispositionRatio = (avgWin / avgLoss).toFixed(2);
-
-    // E. Extra Info: Net PnL & Win Rate
-    netPnl = trades.reduce((acc, curr) => acc + (Number(curr.pnl) || 0), 0);
-    winRate = Math.round((wins.length / trades.length) * 100);
-
-    // F. System Integrity (Average of Discipline & (100 - Risk))
-    systemIntegrity = Math.round((disciplineScore + (100 - revengeRisk)) / 2);
-  }
-
-  // --- 3. CHART DATA GENERATION ---
-  const chartData = hasTrades ? trades.map((t, i) => ({
-    name: `Trade ${i + 1}`,
-    cumulative: trades.slice(0, i + 1).reduce((acc, curr) => acc + (Number(curr.pnl) || 0), 0)
-  })) : [];
-
-  // --- 4. DYNAMIC STYLING ---
+  // 2.UI visual logic 
   const isOptimal = systemIntegrity >= 70;
   const integrityColor = isOptimal ? 'var(--primary)' : 'var(--danger)';
   const integrityLabel = isOptimal ? 'SYSTEM INTEGRITY: OPERATIONAL' : 'SYSTEM INTEGRITY: COMPROMISED';
+
+  const generateStatisticalInsight = () => {
+    if (!hasTrades || trades.length < 3) {
+      return 'Insufficient telemetry. System requires more execution data to formulate statistical behavioral correlations.';
+    }
+    const disciplined = trades.filter(t => t.followedPlan);
+    const impulsive = trades.filter(t => !t.followedPlan);
+    if (impulsive.length === 0) {
+      return 'Optimal Behavioral State: You have a 100% plan adherence rate. Your statistical edge is fully protected.';
+    }
+
+    const discWins = disciplined.filter(t => toNumber(t.pnl) > 0).length;
+    const impWins = impulsive.filter(t => toNumber(t.pnl) > 0).length;
+    const discWinRate = disciplined.length ? (discWins / disciplined.length) * 100 : 0;
+    const impWinRate = impulsive.length ? (impWins / impulsive.length) * 100 : 0;
+    const rateDifference = Math.max(0, discWinRate - impWinRate).toFixed(1);
+    const impulsiveCapitalLost = impulsive
+      .filter(t => toNumber(t.pnl) < 0)
+      .reduce((acc, curr) => acc + Math.abs(toNumber(curr.pnl)), 0);
+
+    if (discWinRate > impWinRate && impulsiveCapitalLost > 0) {
+      return `Cognitive Deviation Penalty: Bypassing your pre-flight checklist degrades your win rate by ${rateDifference}%. You have leaked $${impulsiveCapitalLost.toFixed(2)} in capital strictly from unverified, impulsive execution.`;
+    } else if (impulsiveCapitalLost > 0) {
+      return `Warning: High variance in unverified executions. You have leaked $${impulsiveCapitalLost.toFixed(2)} to impulsive trades. Return to strict checklist adherence to stabilize your equity curve.`;
+    }
+    return 'Telemetry monitoring active. Ensure all confluences are checked prior to execution to maintain edge.';
+  };
 
   return (
     <PageWrapper>
@@ -74,7 +77,7 @@ export default function BehaviouralFeedbackPanel({ user, trades = [] }) {
         <div className="card" style={{ 
           background: isOptimal ? 'rgba(54, 179, 126, 0.1)' : 'rgba(255, 86, 48, 0.1)', 
           border: `1px solid ${integrityColor}`, 
-          marginBottom: '32px',
+          marginBottom: '24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between'
@@ -93,6 +96,19 @@ export default function BehaviouralFeedbackPanel({ user, trades = [] }) {
           <div style={{ fontSize: '48px', fontWeight: '900', color: integrityColor }}>{systemIntegrity}%</div>
         </div>
 
+        {/* ALGORITHMIC INSIGHTS ENGINE */}
+        <div style={{ background: 'rgba(101, 84, 192, 0.1)', border: '1px solid #6554C0', padding: '20px', borderRadius: '12px', marginBottom: '32px', display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+          <div style={{ background: '#6554C0', padding: '12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '48px' }}>
+            <Brain size={24} color="#FFF" />
+          </div>
+          <div>
+            <h3 style={{ margin: '0 0 8px 0', color: '#6554C0', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '900' }}>Algorithmic Insight Engine</h3>
+            <p style={{ margin: 0, color: '#000000', fontSize: '16px', lineHeight: '1.5', fontWeight: '500' }}>
+              {generateStatisticalInsight()}
+            </p>
+          </div>
+        </div>
+
         {/* METRICS GRID (Top Row - Behavioral) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '24px' }}>
           <MetricCard title="DISCIPLINE SCORE" value={`${disciplineScore}%`} sub="Plan adherence rate" icon={<Target size={18} />} color="var(--primary)" />
@@ -103,28 +119,46 @@ export default function BehaviouralFeedbackPanel({ user, trades = [] }) {
 
         {/* EXTRA INFO GRID (Bottom Row - Financial) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px', marginBottom: '32px' }}>
-          <MetricCard title="NET PROFIT / LOSS" value={`$${netPnl.toFixed(2)}`} sub="Total cumulative outcome" icon={<DollarSign size={18} />} color={netPnl >= 0 ? "var(--primary)" : "var(--danger)"} />
+          <MetricCard title="NET PROFIT / LOSS" value={`$${netPnl.toFixed(2)}`} sub="Total Equity outcome" icon={<DollarSign size={18} />} color={netPnl >= 0 ? "var(--primary)" : "var(--danger)"} />
           <MetricCard title="WIN RATE" value={`${winRate}%`} sub="Overall trade success" icon={<Percent size={18} />} color="#0052CC" />
         </div>
 
         {/* BOTTOM SECTION: CHART & LIST */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
           
-          {/* Equity Curve Chart */}
+          {/* Equity Curve Chart (Percentage Growth) */}
           <div className="card" style={{ minHeight: '350px', display: 'flex', flexDirection: 'column' }}>
             <div className="card-header">
-              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><TrendingUp size={16} color="var(--text-muted)" /> EQUITY CURVE</span>
+              <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <TrendingUp size={16} color="var(--text-muted)" /> NET RETURN (%)
+              </span>
             </div>
             <div style={{ flexGrow: 1, width: '100%', height: '280px' }}>
               {!hasTrades ? (
                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>No data to plot.</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 20, right: 20, left: 20, bottom: 0 }}>
                     <XAxis dataKey="name" tick={{fontSize: 12, fill: 'var(--text-muted)'}} axisLine={false} tickLine={false} />
-                    <YAxis tick={{fontSize: 12, fill: 'var(--text-muted)'}} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow)' }} />
-                    <Line type="monotone" dataKey="cumulative" stroke="#0052CC" strokeWidth={4} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 8 }} />
+                    <YAxis 
+                      domain={['auto', 'auto']} 
+                      tick={{fontSize: 12, fill: 'var(--text-muted)'}} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tickFormatter={(value) => `${value}%`} 
+                    />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'var(--shadow)' }} 
+                      formatter={(value) => [`${value}%`, 'Net Return']} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="growth" 
+                      stroke="#0052CC" 
+                      strokeWidth={4} 
+                      dot={{ r: 4, strokeWidth: 2 }} 
+                      activeDot={{ r: 8 }} 
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -178,7 +212,7 @@ const MetricCard = ({ title, value, sub, icon, color }) => (
       <div style={{ color: color }}>{icon}</div>
       <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', letterSpacing: '1px' }}>{title}</span>
     </div>
-    <div className="big-metric" style={{ fontSize: '32px' }}>{value}</div>
+    <div className="big-metric" style={{ fontSize: '32px', color: 'var(--text-main)' }}>{value}</div>
     <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: 'auto' }}>{sub}</div>
   </div>
 );
