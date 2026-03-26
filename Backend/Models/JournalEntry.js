@@ -20,7 +20,7 @@ const JournalEntrySchema = new mongoose.Schema({
         required: true
     },
 
-    // --- NEW: Cognitive Metrics ---
+    // --- Cognitive Metrics ---
     // Captures the state of the "Firewall" when the user journaled
     disciplineScoreAtEntry: {
         type: Number,

@@ -102,7 +102,7 @@ exports.generateUserMetrics = (user, trades = []) => {
     } 
   }
 
-  // RETURN THE MASSIVE, SECURE PAYLOAD!
+  // THE SECURE PAYLOAD!
   return {
     hasTrades,
     disciplineScore,

@@ -35,33 +35,31 @@ export default function Guidebook({ onClose }) {
           
           <Section 
             icon={<Target size={20} color="#10B981" />} 
-            title="Discipline Score" 
+            title="Strategy Adherence" 
             metric="Starts at 100%"
-            desc="Your adherence to the plan. It drops if you break your rules (e.g., entering without confirmation). It resets to 100% every midnight."
+            desc="Your daily discipline score. You start at 100% every midnight. You lose points if you skip your pre-trade checklist or risk too much capital on a single trade."
           />
 
           <Section 
             icon={<Brain size={20} color="#EF4444" />} 
             title="Revenge Risk" 
             metric="Starts at 0%"
-            desc="Detects emotional tilt. It spikes when you take a loss or trade too frequently after a drawdown. If this crosses 50%, stop trading immediately."
+            desc="Your emotional temperature gauge. It spikes if you start rapid-firing trades right after taking a loss. If it gets too high, the firewall locks you out to force a cool-down."
           />
 
           <Section 
             icon={<Activity size={20} color="#3B82F6" />} 
             title="Impulsivity Index" 
             metric="Target: < 1.0x"
-            desc="Measures your trade frequency against your daily limit. If you plan 3 trades and take 6, this hits 2.0x, indicating severe overtrading."
+            desc="Your overtrading alert. It compares the trades you actually took against your daily limit. If your limit is 3 and you take 6, you hit 2.0x—a massive red flag for impulsivity."
           />
-
           
           <Section 
             icon={<PieChart size={20} color="#8B5CF6" />} 
             title="Disposition Ratio" 
-            metric="Target: > 10% Contact"
-            desc="The 'Outcome' metric. Tracks list quality vs. skill. High 'Disconnects' (>15%) means bad data. Low 'Success' (<2%) means the pitch needs work."
+            metric="Target: < 1.0"
+            desc="The 'hope versus fear' tracker. It measures if you are cutting your winning trades too early out of fear, while holding onto your losing trades for way too long out of hope."
           />
-
         </div>
         
         <div style={footerStyle}>

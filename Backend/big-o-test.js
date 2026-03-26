@@ -17,7 +17,7 @@ console.log("Payload generated. Starting algorithmic pipeline...\n");
 const startTime = performance.now();
 
 // 3. THE ALGORITHM: O(n) Linear Time Filtering
-// We iterate through the array once to find impulsive trades
+//iterate through the array once to find impulsive trades
 const impulsiveTrades = trades.filter(trade => trade.isImpulsive).length;
 const plannedTrades = 3; // Baseline from earlier tests
 const impulsivityIndex = (impulsiveTrades / plannedTrades).toFixed(2);

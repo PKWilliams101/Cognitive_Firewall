@@ -19,23 +19,40 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose, revengeRi
     const [loading, setLoading] = useState(false);
     const [tradesToday, setTradesToday] = useState(0); 
 
-    // --- FETCH EXACT TRADES TODAY ON LOAD ---
-    useEffect(() => {
+   useEffect(() => {
         if (!user) return;
+        
         const fetchTodayTrades = async () => {
             try {
-                const res = await axios.get(`http://localhost:5000/api/trades/user/${user._id}`);
+                // 1. Grab and aggressively clean the token
+                const storedUser = JSON.parse(localStorage.getItem('user'));
+                let token = storedUser?.token;
+
+                if (token) {
+                    token = String(token).replace(/['"]+/g, '');
+                } else {
+                    const rawToken = localStorage.getItem('token');
+                    token = rawToken ? rawToken.replace(/['"]+/g, '') : '';
+                }
+
+                // 2. Build the clean Authorization header
+                const config = {
+                    headers: { Authorization: `Bearer ${token}` }
+                };
+
+                // 3. Pass the config as the second argument to axios.get!
+                const res = await axios.get(`http://localhost:5000/api/trades/user/${user._id}`, config);
+                
                 const todayStr = new Date().toDateString();
                 const count = res.data.filter(t => new Date(t.entryTime || t.timestamp).toDateString() === todayStr).length;
                 setTradesToday(count);
             } catch (err) {
-                console.error("Failed to fetch current trades:", err);
+                console.error("Failed to fetch current trades:", err.response?.data || err);
             }
         };
+        
         fetchTodayTrades();
     }, [user]);
-
-    if (!user) return null;
 
     // --- LIMIT & LOCK CALCULATIONS ---
     const MAX_TRADES = Number(user.plannedDailyLimit || 3);
@@ -80,7 +97,7 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose, revengeRi
     const numPnL = Number(pnl);
     
     const tradeData = {
-        userId: user._id,
+        userId: user?._id,
         instrument: instrument,
         direction,
         entryTime,
@@ -95,22 +112,31 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose, revengeRi
 
     // 1. Grab the VIP Badge from Local Storage
     const storedUser = JSON.parse(localStorage.getItem('user'));
-    const token = storedUser?.token;
+    let token = storedUser?.token;
 
-    // 2. Create the Authorization Header
+    // THE FIX: Aggressively clean the token of any hidden quotation marks
+    if (token) {
+        token = String(token).replace(/['"]+/g, '');
+    } else {
+        // Fallback just in case you stored it under 'token' directly earlier
+        const rawToken = localStorage.getItem('token');
+        token = rawToken ? rawToken.replace(/['"]+/g, '') : '';
+    }
+
+    // 2. Create the Authorization Header with the clean token
     const config = {
         headers: { Authorization: `Bearer ${token}` }
     };
 
     try {
-        
         await axios.post('http://localhost:5000/api/trades', tradeData, config);
         
         if (onTradeSuccess) onTradeSuccess(); 
         if (onClose) onClose();              
     } catch (err) {
-        console.error("Save Error:", err);
-        alert("Save failed. Please check your database connection.");
+        console.error("Save Error:", err.response?.data || err);
+        // Added better error logging so you can see exactly why it fails if it ever does again
+        alert("Save failed: " + (err.response?.data?.msg || "Check database connection"));
     } finally {
         setLoading(false);
     }
@@ -154,32 +180,32 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose, revengeRi
                             <div>
                                 <label style={styles.label}>Asset</label>
                                 <select style={styles.input} value={instrument} onChange={e => setInstrument(e.target.value)}>
-                                    <option value="" disabled>Select...</option>
-                                    <optgroup label="Forex">
-                                        <option value="EUR/USD">EUR/USD</option>
-                                        <option value="GBP/USD">GBP/USD</option>
-                                        <option value="USD/JPY">USD/JPY</option>
-                                        <option value="GBP/JPY">GBP/JPY</option>
+                                    <option value="" disabled style={{ color: 'black' }}>Select...</option>
+                                    <optgroup label="Forex" style={{ color: 'black' }}>
+                                        <option value="EUR/USD" style={{ color: 'black' }}>EUR/USD</option>
+                                        <option value="GBP/USD" style={{ color: 'black' }}>GBP/USD</option>
+                                        <option value="USD/JPY" style={{ color: 'black' }}>USD/JPY</option>
+                                        <option value="GBP/JPY" style={{ color: 'black' }}>GBP/JPY</option>
                                     </optgroup>
-                                    <optgroup label="Metals">
-                                        <option value="XAU/USD">XAU/USD (Gold)</option>
-                                        <option value="XAG/USD">XAG/USD (Silver)</option>
+                                    <optgroup label="Metals" style={{ color: 'black' }}>
+                                        <option value="XAU/USD" style={{ color: 'black' }}>XAU/USD (Gold)</option>
+                                        <option value="XAG/USD" style={{ color: 'black' }}>XAG/USD (Silver)</option>
                                     </optgroup>
-                                    <optgroup label="Indices">
-                                        <option value="US30">US30 (Dow Jones)</option>
-                                        <option value="NAS100">NAS100 (Nasdaq)</option>
+                                    <optgroup label="Indices" style={{ color: 'black' }}>
+                                        <option value="US30" style={{ color: 'black' }}>US30 (Dow Jones)</option>
+                                        <option value="NAS100" style={{ color: 'black' }}>NAS100 (Nasdaq)</option>
                                     </optgroup>
-                                    <optgroup label="Crypto">
-                                        <option value="BTC/USD">BTC/USD (Bitcoin)</option>
-                                        <option value="ETH/USD">ETH/USD (Ethereum)</option>
+                                    <optgroup label="Crypto" style={{ color: 'black' }}>
+                                        <option value="BTC/USD" style={{ color: 'black' }}>BTC/USD (Bitcoin)</option>
+                                        <option value="ETH/USD" style={{ color: 'black' }}>ETH/USD (Ethereum)</option>
                                     </optgroup>
                                 </select>
                             </div>
                             <div>
                                 <label style={styles.label}>Side</label>
                                 <select style={styles.input} value={direction} onChange={e => setDirection(e.target.value)}>
-                                    <option value="buy">Long</option>
-                                    <option value="sell">Short</option>
+                                    <option value="buy"style={{ color: 'black' }}>Long</option>
+                                    <option value="sell" style={{ color: 'black' }}>Short</option>
                                 </select>
                             </div>
                             <div>

@@ -2,7 +2,7 @@ const User = require('../Models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// A secret key for signing tokens (In production, this goes in a .env file!)
+// A secret key for signing tokens (goes in a .env file!)
 const JWT_SECRET = "cognitive_firewall_super_secret_key_2026";
 
 // Helper function to generate the token

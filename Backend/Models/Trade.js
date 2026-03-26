@@ -24,7 +24,7 @@ const TradeSchema = new mongoose.Schema(
     
     mood: {
       type: String,
-      // Expanded to perfectly match all frontend UI emotional states
+      
       enum: ["Neutral", "Anxious", "Greedy", "Angry", "Euphoric", "Calm", "Calm & Collected", "Confident"],
       default: "Neutral"
     },

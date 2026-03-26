@@ -58,7 +58,7 @@ router.post('/login', async (req, res) => {
     // Find user
     const user = await User.findOne({ email });
     
-    // 🔥 THE UPGRADE: Compare typed password against the database hash
+    // Compare typed password against the database hash
     if (user && (await bcrypt.compare(password, user.password))) {
       res.json({
         _id: user._id,
