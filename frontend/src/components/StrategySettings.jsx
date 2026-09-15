@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Lock, LockOpen, AlertTriangle, ShieldCheck, Settings2, Hash, Activity } from 'lucide-react';
+import { Plus, Trash2, Lock, LockOpen, AlertTriangle, Settings2, Hash, Activity } from 'lucide-react';
 import axios from 'axios';
 import PageWrapper from './PageWrapper';
 
