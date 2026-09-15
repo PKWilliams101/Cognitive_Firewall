@@ -133,6 +133,7 @@ function App() {
           <TradeExecutionWizard
             userId={user._id}
             user={user}
+            revengeRisk={metrics?.revengeRisk || 0}
             onClose={() => setShowWizard(false)}
             onTradeSuccess={() => fetchTradeHistory(user._id)}
           />
