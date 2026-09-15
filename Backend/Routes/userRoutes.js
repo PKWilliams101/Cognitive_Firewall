@@ -87,7 +87,21 @@ router.put('/:id', async (req, res) => {
       req.body,
       { new: true }
     );
-    res.json(updatedUser);
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Return a fresh token so the client's stored session isn't wiped
+    // when it persists this response (it overwrites the saved user object).
+    res.json({
+      _id: updatedUser._id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      tradingPlanRules: updatedUser.tradingPlanRules,
+      plannedDailyLimit: updatedUser.plannedDailyLimit,
+      token: generateToken(updatedUser._id)
+    });
   } catch (error) {
     res.status(400).json({ message: 'Update failed' });
   }
