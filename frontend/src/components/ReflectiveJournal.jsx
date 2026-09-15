@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, TrendingUp, TrendingDown, Calendar, AlertTriangle } from 'lucide-react';
+import { FileText, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import axios from 'axios';
 import PageWrapper from './PageWrapper';
 
