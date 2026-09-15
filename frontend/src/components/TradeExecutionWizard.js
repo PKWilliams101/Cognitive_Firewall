@@ -13,7 +13,9 @@ const TradeExecutionWizard = ({ userId, onTradeSuccess, user, onClose, revengeRi
     const [entryTime, setEntryTime] = useState(null);
     const [pnl, setPnl] = useState('');
     const [mood, setMood] = useState('Neutral');
-    const [followedPlan, setFollowedPlan] = useState(true);
+    // Default to unchecked: a discipline tool must not pre-claim adherence
+    // on the user's behalf, or it silently inflates the discipline score.
+    const [followedPlan, setFollowedPlan] = useState(false);
     const [notes, setNotes] = useState('');
     
     const [loading, setLoading] = useState(false);
