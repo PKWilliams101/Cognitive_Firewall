@@ -8,8 +8,10 @@ export function ReflectiveJournal({ trades, userId, onTradeLogged }) {
   
   // Form State
   const [formData, setFormData] = useState({
-    asset: '', direction: 'Long', pnl: '', 
-    followedPlan: 'yes', emotionalState: 'Calm', notes: ''
+    // Default to non-adherent: don't pre-claim the user followed their
+    // plan (mirrors the Trade wizard's unchecked-by-default adherence).
+    asset: '', direction: 'Long', pnl: '',
+    followedPlan: 'no', emotionalState: 'Calm', notes: ''
   });
 
   const handleSubmit = async () => {
